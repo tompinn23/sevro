@@ -1,6 +1,6 @@
 from typing import Any, Mapping, Union
 
-import orjson
+import xxjson
 
 from sevro.headers import MutableHeaders
 from sevro.responses import Response
@@ -14,4 +14,4 @@ class JSONResponse(Response):
         headers: Union[MutableHeaders, dict[str, str]] | None = None,
         media_type: str | None = None,
     ) -> None:
-        super().__init__(orjson.dumps(body), status, media_type, headers)
+        super().__init__(xxjson.dumps(body), status, media_type, headers)

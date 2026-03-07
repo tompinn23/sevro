@@ -1,8 +1,8 @@
 from typing import Any, Mapping, Union
 
-import orjson
 
 from .base import Response
+from .json import JSONResponse
 from ..headers import MutableHeaders
 
 

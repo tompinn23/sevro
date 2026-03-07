@@ -1,6 +1,6 @@
 from typing import Any, AsyncGenerator
 
-import orjson
+import xxjson
 
 from ._types import Protocol, Scope
 
@@ -63,9 +63,6 @@ class Request(HTTPConnection):
         returning the parsed JSON object.
         """
         if not hasattr(self, "_json"):
-            try:
-                body = await self.body()
-                self._json = orjson.loads(body)
-            except orjson.JSONDecodeError as e:
-                raise ValueError(f"Invalid JSON: {e}") from e
+            body = await self.body()
+            self._json = xxjson.loads(body)
         return self._json

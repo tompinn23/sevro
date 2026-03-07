@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.14"
 dependencies = [
-    "orjson>=3.11.7",
+    "xxjson>=0.2.0",
 ]
 
 [build-system]

@@ -1,6 +1,6 @@
 from typing import TypeVar, Callable
 
-import orjson
+import xxjson
 
 S = TypeVar("S")
 D = TypeVar("D")
@@ -12,7 +12,7 @@ class Converters:
     def __init__(self):
         self._strategies = {}
 
-        self.register(str, dict, orjson.loads)
+        self.register(str, dict, xxjson.loads)
 
     def register(self, src: S, dst: D, converter: Callable[[S], D]):
         self._strategies[(src, dst)] = converter
