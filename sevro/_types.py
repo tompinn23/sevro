@@ -1,4 +1,4 @@
-from typing import MutableMapping, Any, Iterator
+from typing import MutableMapping, Any, Iterator, Awaitable, Callable, TypeAlias
 
 
 class Headers:
@@ -52,3 +52,9 @@ class WebsocketTransport:
 class WebsocketProtocol:
     async def accept(self) -> WebsocketTransport: ...
     def close(self, status: int | None) -> tuple[int, bool]: ...
+
+
+# ASGI types
+ASGIScope: TypeAlias = MutableMapping[str, Any]
+ASGIReceive: TypeAlias = Callable[[], Awaitable[MutableMapping[str, Any]]]
+ASGISend: TypeAlias = Callable[[MutableMapping[str, Any]], Awaitable[None]]

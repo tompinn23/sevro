@@ -36,7 +36,7 @@ class Response:
         if self._body is None:
             proto.response_empty(self._status, self._headers.items())
 
-    async def asgi(self, send):
+    async def asgi(self, scope, send):
         if self._body is not None:
             self._headers["content-type"] = self._media_type
             self._headers["content-length"] = str(len(self._body))

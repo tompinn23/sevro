@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.14"
 dependencies = [
+    "anyio>=4.12.1",
     "xxjson>=0.2.0",
 ]
 
@@ -19,8 +20,9 @@ bindings="pyo3"
 dev = [
     "granian>=2.7.2",
     "pytest>=9.0.2",
+    "uvicorn>=0.41.0",
     "uvloop>=0.19.0; sys_platform != 'win32'",
-    "winloop>=0.5.0; sys_platform == 'win32'"
+    "winloop>=0.5.0; sys_platform == 'win32'",
 ]
 
 [tool.pytest.ini_options]

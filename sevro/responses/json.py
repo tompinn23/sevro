@@ -14,4 +14,4 @@ class JSONResponse(Response):
         headers: Union[MutableHeaders, dict[str, str]] | None = None,
         media_type: str | None = None,
     ) -> None:
-        super().__init__(xxjson.dumps(body), status, media_type, headers)
+        super().__init__(xxjson.dumps(body), status, headers, media_type)
