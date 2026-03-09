@@ -91,11 +91,10 @@ class Application:
         if message["type"] == "lifespan.startup":
             try:
                 if self._startup is not None:
-                    await self._startup(
-                        **{"loop": asyncio.get_running_loop()}
-                    ) if asyncio.iscoroutinefunction(self._startup) else self._startup(
-                        **{"loop": asyncio.get_running_loop()}
-                    )
+                    if asyncio.iscoroutinefunction(self._startup):
+                        await self._startup()
+                    else:
+                        self._startup()
                 await send({"type": "lifespan.startup.complete"})
             except Exception as e:
                 await send({"type": "lifespan.startup.failed", "message": str(e)})
@@ -104,11 +103,10 @@ class Application:
         if message["type"] == "lifespan.shutdown":
             try:
                 if self._shutdown is not None:
-                    await self._shutdown(
-                        **{"loop": asyncio.get_running_loop()}
-                    ) if asyncio.iscoroutinefunction(
-                        self._shutdown
-                    ) else self._shutdown(**{"loop": asyncio.get_running_loop()})
+                    if asyncio.iscoroutinefunction(self._shutdown):
+                        await self._shutdown()
+                    else:
+                        self._shutdown()
                 await send({"type": "lifespan.shutdown.complete"})
             except Exception as e:
                 await send({"type": "lifespan.shutdown.failed", "message": str(e)})
