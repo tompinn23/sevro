@@ -17,6 +17,11 @@ impl<T> RadixMap<T> {
 
     #[allow(dead_code)]
     pub fn insert(&mut self, path: &str, data: T) -> Result<Option<T>, RadixMapError> {
+        let path = if path.len() > 1 && path.ends_with('/') {
+            &path[..path.len() - 1]
+        } else {
+            path
+        };
         let tokens = tokenize(path)?;
         let node = Self::insert_tokens(&mut self.root, &tokens)?;
 
@@ -32,6 +37,11 @@ impl<T> RadixMap<T> {
     pub fn get_mut_or_insert<F>(&mut self, pattern: &str, f: F) -> Result<&mut T, RadixMapError>
     where F: FnOnce() -> T,
     {
+        let pattern = if pattern.len() > 1 && pattern.ends_with('/') {
+            &pattern[..pattern.len() - 1]
+        } else {
+            pattern
+        };
         let tokens = tokenize(pattern)?;
         let node = Self::insert_tokens(&mut self.root, &tokens)?;
         Ok(node.value.get_or_insert_with(f))
@@ -173,6 +183,12 @@ impl<T> RadixMap<T> {
         if !path.starts_with('/') {
             return None;
         }
+
+        let path = if path.len() > 1 && path.ends_with('/') {
+            &path[..path.len() - 1]
+        } else {
+            path
+        };
 
         let mut remaining = &path[1..];
         let mut node = &self.root;

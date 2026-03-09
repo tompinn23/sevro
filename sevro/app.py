@@ -45,25 +45,13 @@ class Application:
         prefix = (path or "") + router.prefix
         for methods, pattern, fn in router.routes:
             full_path = prefix + pattern
-            dependant = get_dependant(
-                path=full_path, call=fn, registry_types=set(self._registry)
-            )
+            dependant = get_dependant(path=full_path, call=fn)
             self.router.route(methods, full_path, self._wrap(fn, dependant))
 
-    def __get_decorator(
-        self, method: str, pattern: str | None = None
-    ) -> Callable[..., Any]:
+    def __get_decorator(self, method: str, pattern: str) -> Callable[..., Any]:
         def decorator(fn):
             route = pattern
-            if route is None:
-                route = (
-                    "/"
-                    if fn.__name__ in ("index", "default")
-                    else "/" + fn.__name__.replace("_", "-")
-                )
-            dependant = get_dependant(
-                path=route, call=fn, registry_types=set(self._registry)
-            )
+            dependant = get_dependant(path=route, call=fn)
             self.router.route([method], route, self._wrap(fn, dependant))
             return fn
 

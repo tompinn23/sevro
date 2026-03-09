@@ -25,6 +25,10 @@ class Request:
                 self._url = url.from_scope(self.scope)
         return self._url
 
+    @property
+    def params(self) -> dict[str, str]:
+        return self.url.query()
+
     async def stream(self) -> AsyncGenerator[bytes, None]:
         raise NotImplementedError
 

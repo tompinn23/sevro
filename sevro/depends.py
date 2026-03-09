@@ -18,7 +18,6 @@ from typing import (
     get_args,
     get_origin,
 )
-from urllib.parse import parse_qs
 
 from sevro.request import Request
 
@@ -305,6 +304,18 @@ def _is_http_connection_type(annotation: Any) -> bool:
     )
 
 
+_PRIMITIVE_TYPES = {str, int, float, bool, bytes, type(None)}
+
+
+def _is_injectable_type(annotation: Any) -> bool:
+    return (
+        isinstance(annotation, type)
+        and annotation not in _PRIMITIVE_TYPES
+        and annotation is not Any
+        and not _is_request_type(annotation)
+    )
+
+
 # --- Dependant building ---
 
 
@@ -315,7 +326,6 @@ def get_dependant(
     name: str | None = None,
     use_cache: bool = True,
     scope: Literal["function", "request"] | None = None,
-    registry_types: set[type] | None = None,
 ) -> Dependant:
     dependant = Dependant(
         call=call, name=name, path=path, use_cache=use_cache, scope=scope
@@ -325,7 +335,7 @@ def get_dependant(
 
     for param_name, param in endpoint_signature.parameters.items():
         is_path_param = param_name in path_param_names
-        if registry_types and param.annotation in registry_types:
+        if not is_path_param and _is_injectable_type(param.annotation):
             dependant.injected_params.append((param_name, param.annotation))
             continue
         param_details = analyze_param(
@@ -445,12 +455,6 @@ def _convert(
         return None, f"invalid value for '{param_name}': {e}"
 
 
-def _parse_query_string(query_string: str) -> dict[str, list[str]]:
-    if not query_string:
-        return {}
-    return parse_qs(query_string, keep_blank_values=True)
-
-
 # --- Generator helpers ---
 
 
@@ -557,7 +561,7 @@ async def solve_dependencies(
 
     # Query params
     if dependant.query_params:
-        query_dict = _parse_query_string(request.scope.query_string)
+        query_dict = request.params
         for spec in dependant.query_params:
             raw_list = query_dict.get(spec.alias)
             raw = raw_list[0] if raw_list else None

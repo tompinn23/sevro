@@ -6,50 +6,41 @@ class Router:
         self.prefix = prefix or ""
         self.routes: list[tuple[list[str], str, Callable]] = []
 
-    def _resolve_path(self, pattern: str | None, fn: Callable) -> str:
-        if pattern is not None:
-            return pattern
-        return (
-            "/"
-            if fn.__name__ in ("index", "default")
-            else "/" + fn.__name__.replace("_", "-")
-        )
-
     def route(self, methods: list[str], pattern: str, handler: Callable) -> Callable:
         self.routes.append((methods, pattern, handler))
         return handler
 
-    def get(self, pattern: str | None = None) -> Callable:
+    def get(self, pattern: str = "") -> Callable:
         def decorator(fn):
-            self.routes.append((["GET"], self._resolve_path(pattern, fn), fn))
+            self.routes.append((["GET"], pattern, fn))
             return fn
 
         return decorator
 
-    def post(self, pattern: str | None = None) -> Callable:
+    def post(self, pattern: str = "") -> Callable:
         def decorator(fn):
-            self.routes.append((["POST"], self._resolve_path(pattern, fn), fn))
+            self.routes.append((["POST"], pattern, fn))
             return fn
 
         return decorator
 
-    def put(self, pattern: str | None = None) -> Callable:
+    def put(self, pattern: str = "") -> Callable:
         def decorator(fn):
-            self.routes.append((["PUT"], self._resolve_path(pattern, fn), fn))
+            self.routes.append((["PUT"], pattern, fn))
             return fn
 
         return decorator
 
-    def delete(self, pattern: str | None = None) -> Callable:
+    def delete(self, pattern: str = "") -> Callable:
         def decorator(fn):
-            self.routes.append((["DELETE"], self._resolve_path(pattern, fn), fn))
+            self.routes.append((["DELETE"], pattern, fn))
             return fn
 
         return decorator
 
-    def patch(self, pattern: str | None = None) -> Callable:
+    def patch(self, pattern: str = "") -> Callable:
         def decorator(fn):
-            self.routes.append((["PATCH"], self._resolve_path(pattern, fn), fn))
+            self.routes.append((["PATCH"], pattern, fn))
             return fn
 
         return decorator
