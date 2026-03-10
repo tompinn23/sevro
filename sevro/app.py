@@ -6,9 +6,9 @@ from typing import Callable, Any, Mapping
 from . import responses
 from .depends import Dependant, get_dependant, solve_dependencies
 from .exception import ConversionError, HTTPException
-from .responses import Response
+from .protocol import ASGISender, RSGISender
 from .request import Request, RSGIRequest, ASGIRequest
-from ._types import Scope, Protocol, ASGIScope, ASGIReceive, ASGISend
+from ._types import Scope, RSGIProtocol, ASGIScope, ASGIReceive, ASGISend
 from .router import Router
 
 from .subrouter import Router as SubRouter
@@ -102,14 +102,7 @@ class Application:
     def get(self, pattern: str | None = None):
         return self.__get_decorator("GET", pattern)
 
-    async def __call__(self, scope: ASGIScope, receive: ASGIReceive, send: ASGISend):
-        if scope["type"] == "lifespan":
-            await self._handle_lifespan(receive, send)
-            return
-        if scope["type"] != "http":
-            return
-        request = ASGIRequest(scope, receive)
-        url = request.url
+    async def process(self, request, sender):
         if match := self.router.find(url.path(), scope["method"]):
             handler, params = match
             try:
@@ -128,6 +121,18 @@ class Application:
         else:
             await responses.text("Not Found", 404).asgi(scope, send)
 
+    async def __call__(self, scope: ASGIScope, receive: ASGIReceive, send: ASGISend):
+        if scope["type"] == "lifespan":
+            await self._handle_lifespan(receive, send)
+            return
+        if scope["type"] != "http":
+            return
+        request = ASGIRequest(scope, receive)
+        sender = ASGISender(scope, send)
+        await self.process(request, sender)
+
+
+
     def __rsgi_init__(self, loop):
         if self._startup is not None:
             self._startup(**{"loop": loop})
@@ -136,23 +141,8 @@ class Application:
         if self._shutdown is not None:
             self._shutdown(**{"loop": loop})
 
-    async def __rsgi__(self, scope: Scope, protocol: Protocol):
+    async def __rsgi__(self, scope: Scope, protocol: RSGIProtocol):
         request = RSGIRequest(scope, protocol)
-        url = request.url
-        if match := self.router.find(url.path(), scope.method):
-            handler, params = match
-            try:
-                res = await handler(request, params)
-            except HTTPException as e:
-                res = e.response()
-            except Exception as e:
-                res = responses.text(str(e), 500)
+        sender = RSGISender(scope, protocol)
 
-            if isinstance(res, Response):
-                await res.rsgi(protocol)
-            elif isinstance(res, str):
-                await responses.text(res).rsgi(protocol)
-            elif isinstance(res, Mapping):
-                await responses.json(res).rsgi(protocol)
-        else:
-            await responses.text("Not Found", 404).rsgi(protocol)
+

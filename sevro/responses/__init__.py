@@ -1,22 +1,32 @@
-from typing import Any, Mapping, Union
+from typing import Any
 
+import xxjson
 
-from .base import Response
-from .json import JSONResponse
+from .types import BaseHTTPResponse, HTTPResponse, StreamResponse
 from ..headers import MutableHeaders
 
-
-def text(
-    content: str,
-    status: int = 200,
-    headers: Union[MutableHeaders, dict[str, str]] | None = None,
-) -> Response:
-    return Response(content, status, media_type="text/plain", headers=headers)
+HeaderType = MutableHeaders | dict[str, str]
 
 
-def json(
-    content: Mapping[str, Any],
-    status: int = 200,
-    headers: Union[MutableHeaders, dict[str, str]] | None = None,
-) -> Response:
-    return JSONResponse(content, status, media_type="application/json", headers=headers)
+def text(body: str,
+         status: int = 200,
+         headers: HeaderType | None = None,
+         content_type: str = "text/plain; charset=utf-8") -> HTTPResponse:
+    if not isinstance(body, str):
+        raise TypeError(f"Bad body type. Expected str, got {type(body).__name__}")
+    return HTTPResponse(
+        body, status=status, headers=headers, content_type=content_type
+    )
+
+def json(body: Any,
+         status: int = 200,
+         headers: HeaderType | None = None,
+         content_type: str = "application/json; charset=utf-8") -> HTTPResponse:
+    return HTTPResponse(
+        body=xxjson.dumps(body),
+        status=status, headers=headers, content_type=content_type
+    )
+
+
+
+
