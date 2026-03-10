@@ -1,12 +1,12 @@
 import asyncio
 from contextlib import AsyncExitStack
 from functools import wraps
-from typing import Callable, Any, Mapping
+from typing import Callable, Any
 
 from . import responses
 from .depends import Dependant, get_dependant, solve_dependencies
 from .exception import ConversionError, HTTPException
-from .protocol import ASGISender, RSGISender
+from sevro.responses.protocol import ASGISender, RSGISender
 from .request import Request, RSGIRequest, ASGIRequest
 from ._types import Scope, RSGIProtocol, ASGIScope, ASGIReceive, ASGISend
 from .router import Router
@@ -103,7 +103,8 @@ class Application:
         return self.__get_decorator("GET", pattern)
 
     async def process(self, request, sender):
-        if match := self.router.find(url.path(), scope["method"]):
+        url = request.url
+        if match := self.router.find(url.path(), request.method):
             handler, params = match
             try:
                 res = await handler(request, params)
@@ -112,14 +113,9 @@ class Application:
             except Exception as e:
                 res = responses.text(str(e), 500)
 
-            if isinstance(res, Response):
-                await res.asgi(scope, send)
-            elif isinstance(res, str):
-                await responses.text(res).asgi(scope, send)
-            elif isinstance(res, Mapping):
-                await responses.json(res).asgi(scope, send)
+            await res.send(sender)
         else:
-            await responses.text("Not Found", 404).asgi(scope, send)
+            await responses.text("Not Found", 404).send(sender)
 
     async def __call__(self, scope: ASGIScope, receive: ASGIReceive, send: ASGISend):
         if scope["type"] == "lifespan":
@@ -130,8 +126,6 @@ class Application:
         request = ASGIRequest(scope, receive)
         sender = ASGISender(scope, send)
         await self.process(request, sender)
-
-
 
     def __rsgi_init__(self, loop):
         if self._startup is not None:
@@ -144,5 +138,4 @@ class Application:
     async def __rsgi__(self, scope: Scope, protocol: RSGIProtocol):
         request = RSGIRequest(scope, protocol)
         sender = RSGISender(scope, protocol)
-
-
+        await self.process(request, sender)

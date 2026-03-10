@@ -5,28 +5,29 @@ import uvicorn
 from sevro.app import Application
 from sevro.depends import Depends
 from sevro.request import Request
-from sevro.responses.file import FileResponse
+
+from sevro.responses import json, file
 
 app = Application()
 
 
 async def complex():
-    return "Jimmy"
+    return "Hello From a Coroutine"
 
 
 @app.get("/hello/:id")
 async def hello(req: Request, id: int, x: Annotated[str, Depends(complex)]):
-    return {"message": f"Hello World! {id} {x}"}
+    return json({"message": "Hello World!", "id": id, "x": x})
 
 
 @app.get("/query")
 async def query(req: Request, id: int | None = None):
-    return {"message": f"Hello World! {id}"}
+    return json({"message": f"Hello World! {id}"})
 
 
 @app.get("/read")
-async def read():
-    return FileResponse("README.md")
+async def read(request: Request):
+    return await file("README.md", request_headers=request.headers)
 
 
 if __name__ == "__main__":

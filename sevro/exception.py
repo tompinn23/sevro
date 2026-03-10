@@ -1,7 +1,6 @@
 from http import HTTPStatus
 
-from sevro import responses
-from sevro.responses import Response
+from sevro.responses import text, HTTPResponse
 
 
 class HTTPException(Exception):
@@ -10,8 +9,8 @@ class HTTPException(Exception):
         self.detail = detail or HTTPStatus(status).phrase
         super().__init__(self.detail)
 
-    def response(self) -> Response:
-        return responses.text(self.detail, self.status)
+    def response(self) -> HTTPResponse:
+        return text(self.detail, self.status)
 
 
 class ConversionError(HTTPException):

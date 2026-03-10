@@ -5,6 +5,7 @@ import xxjson
 from ._types import RSGIProtocol, Scope, ASGIScope, ASGIReceive
 
 from sevro import url
+from .headers import Headers
 
 
 class Request:
@@ -12,7 +13,7 @@ class Request:
     __eq__ = object.__eq__
     __hash__ = object.__hash__
 
-    def __init__(self, scope: Scope | ASGIScope, protocol: Protocol | ASGIReceive):
+    def __init__(self, scope: Scope | ASGIScope, protocol: RSGIProtocol | ASGIReceive):
         self.scope = scope
         self.protocol = protocol
 
@@ -28,6 +29,24 @@ class Request:
     @property
     def params(self) -> dict[str, str]:
         return self.url.query()
+
+    @property
+    def method(self):
+        if not hasattr(self, "_method"):
+            if isinstance(self.scope, dict):
+                self._method = self.scope["method"]
+            else:
+                self._method = self.scope.method
+        return self._method
+
+    @property
+    def headers(self) -> Headers:
+        if not hasattr(self, "_headers"):
+            if isinstance(self.scope, dict):
+                self._headers = Headers(scope=self.scope)
+            else:
+                self._headers = Headers(headers=self.scope.headers)
+        return self._headers
 
     async def stream(self) -> AsyncGenerator[bytes, None]:
         raise NotImplementedError
@@ -54,7 +73,7 @@ class Request:
 
 
 class RSGIRequest(Request):
-    def __init__(self, scope: Scope, protocol: Protocol) -> None:
+    def __init__(self, scope: Scope, protocol: RSGIProtocol) -> None:
         assert scope.proto == "http"
         super().__init__(scope, protocol)
 
