@@ -127,13 +127,20 @@ class Application:
         sender = ASGISender(scope, send)
         await self.process(request, sender)
 
-    def __rsgi_init__(self, loop):
+    def __rsgi_init__(self, loop: asyncio.AbstractEventLoop):
         if self._startup is not None:
-            self._startup(**{"loop": loop})
+            if self._startup is not None:
+                if asyncio.iscoroutinefunction(self._startup):
+                    loop.run_until_complete(self._startup())
+                else:
+                    self._startup()
 
     def __rsgi_del__(self, loop):
         if self._shutdown is not None:
-            self._shutdown(**{"loop": loop})
+            if asyncio.iscoroutinefunction(self._shutdown):
+                loop.run_until_complete(self._shutdown())
+            else:
+                self._shutdown()
 
     async def __rsgi__(self, scope: Scope, protocol: RSGIProtocol):
         request = RSGIRequest(scope, protocol)
