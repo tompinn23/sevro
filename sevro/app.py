@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from contextlib import AsyncExitStack
 from functools import wraps
 from typing import Callable, Any
@@ -12,6 +13,8 @@ from ._types import Scope, RSGIProtocol, ASGIScope, ASGIReceive, ASGISend
 from .router import Router
 
 from .subrouter import Router as SubRouter
+
+LOG = logging.getLogger(__name__)
 
 
 class Application:
@@ -111,6 +114,7 @@ class Application:
             except HTTPException as e:
                 res = e.response()
             except Exception as e:
+                LOG.exception(f"Unhandled exception {e}")
                 res = responses.text(str(e), 500)
 
             await res.send(sender)
