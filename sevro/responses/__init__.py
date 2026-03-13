@@ -22,6 +22,14 @@ from ..headers import Headers, MutableHeaders
 LOG = logging.getLogger("responses")
 
 
+def redirect(
+    url: str, status: int = 302, headers: HeaderType | None = None
+) -> HTTPResponse:
+    headers = headers or MutableHeaders()
+    headers.setdefault("location", url)
+    return HTTPResponse(b"", status, headers)
+
+
 def text(
     body: str,
     status: int = 200,

@@ -115,7 +115,7 @@ class Application:
                 res = e.response()
             except Exception as e:
                 LOG.exception(f"Unhandled exception {e}")
-                res = responses.text(str(e), 500)
+                res = responses.text(e, 500)
 
             await res.send(sender)
         else:
