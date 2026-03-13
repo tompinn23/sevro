@@ -165,7 +165,7 @@ def get_path_param_names(path: str) -> set[str]:
     """Extract parameter names from a route pattern like /user/:id."""
     import re
 
-    return set(re.findall(r":(\w+)", path))
+    return set(re.findall(r"[\*:](\w+)", path))
 
 
 # --- Stream type detection ---
