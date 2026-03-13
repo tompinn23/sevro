@@ -7,7 +7,7 @@ from time import time
 from typing import Any
 
 import anyio
-import xxjson
+import orjson
 from anyio.functools import cache
 
 from .types import (
@@ -40,7 +40,7 @@ def json(
     content_type: str = "application/json; charset=utf-8",
 ) -> HTTPResponse:
     return HTTPResponse(
-        body=xxjson.dumps(body),
+        body=orjson.dumps(body),
         status=status,
         headers=headers,
         content_type=content_type,

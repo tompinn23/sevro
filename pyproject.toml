@@ -5,7 +5,7 @@ description = "Add your description here"
 requires-python = ">=3.14"
 dependencies = [
     "anyio>=4.12.1",
-    "xxjson>=0.2.0",
+    "orjson>=3.11.7",
 ]
 
 [build-system]

@@ -1,7 +1,5 @@
 from typing import Any, AsyncGenerator
 
-import xxjson
-
 from ._types import RSGIProtocol, Scope, ASGIScope, ASGIReceive
 
 from sevro import url
