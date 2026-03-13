@@ -23,7 +23,10 @@ LOG = logging.getLogger("responses")
 
 
 def redirect(
-    url: str, status: int = 302, headers: HeaderType | None = None
+    url: str,
+    status: int = 302,
+    headers: HeaderType | None = None,
+    cookies: CookieJar | None = None,
 ) -> HTTPResponse:
     headers = headers or MutableHeaders()
     headers.setdefault("location", url)
@@ -34,6 +37,7 @@ def text(
     body: str,
     status: int = 200,
     headers: HeaderType | None = None,
+    cookies: CookieJar | None = None,
     content_type: str = "text/plain; charset=utf-8",
 ) -> HTTPResponse:
     if not isinstance(body, str):
@@ -45,6 +49,7 @@ def json(
     body: Any,
     status: int = 200,
     headers: HeaderType | None = None,
+    cookies: CookieJar | None = None,
     content_type: str = "application/json; charset=utf-8",
 ) -> HTTPResponse:
     return HTTPResponse(
@@ -92,6 +97,7 @@ async def file(
     path: str | PurePath,
     status: int = 200,
     headers: HeaderType | None = None,
+    cookies: CookieJar | None = None,
     content_type: str = "application/octet-stream; charset=utf-8",
     request_headers: Headers | None = None,
     validate_requested: bool = True,

@@ -2,6 +2,7 @@ import mimetypes
 from typing import Any, Union
 
 import anyio
+from sevro.cookies import CookieJar
 
 from sevro.headers import MutableHeaders
 from sevro.responses.protocol import Sender
@@ -25,6 +26,7 @@ class HTTPResponse(BaseHTTPResponse):
         body: Any = None,
         status: int = 200,
         headers: HeaderType | None = None,
+        cookies: CookieJar | None = None,
         content_type: str | None = None,
     ):
         super().__init__()
@@ -35,6 +37,8 @@ class HTTPResponse(BaseHTTPResponse):
             if isinstance(headers, dict)
             else headers or MutableHeaders()
         )
+        if cookies is not None:
+            cookies.apply(self.headers)
         self.content_type = content_type
 
     async def send(self, protocol: Sender):
@@ -50,6 +54,7 @@ class StreamResponse(BaseHTTPResponse):
         body: Any = None,
         status: int = 200,
         headers: HeaderType | None = None,
+        cookies: CookieJar | None = None,
         content_type: str | None = None,
     ):
         super().__init__()
@@ -60,6 +65,8 @@ class StreamResponse(BaseHTTPResponse):
             if isinstance(headers, dict)
             else headers or MutableHeaders()
         )
+        if cookies is not None:
+            cookies.apply(self.headers)
         self.content_type = content_type
 
     async def send(self, protocol: Sender):
@@ -80,6 +87,7 @@ class FileResponse(HTTPResponse):
         path: str,
         status: int = 200,
         headers: HeaderType | None = None,
+        cookies: CookieJar | None = None,
         content_type: str | None = None,
     ):
         super().__init__()
@@ -90,6 +98,8 @@ class FileResponse(HTTPResponse):
             if isinstance(headers, dict)
             else headers or MutableHeaders()
         )
+        if cookies is not None:
+            cookies.apply(self.headers)
         self.content_type = content_type
 
     async def _set_headers(self) -> bool:
