@@ -1,5 +1,7 @@
 from dataclasses import dataclass
-from sevro.headers import Headers
+from typing import Mapping
+
+from sevro.headers import Headers, MutableHeaders
 
 
 @dataclass
@@ -52,19 +54,29 @@ class Cookie:
         return Cookie(key=key, value=value, **kwargs)
 
 
-class CookieJar:
+class CookieJar(Mapping[str, Cookie]):
+    def __len__(self):
+        self._cookies.__len__()
+
+    def __iter__(self):
+        self._cookies.__iter__()
+
+    def __getitem__(self, key, /):
+        return self._cookies[key]
+
     def __init__(self, headers: Headers | None = None):
         if headers is None:
-            self._cookies: list[Cookie] = []
+            self._cookies: dict[str, Cookie] = {}
         else:
             for cookie in headers.getall("set-cookie"):
-                self._cookies.append(Cookie._parse(cookie))
+                cookie = Cookie._parse(cookie)
+                self._cookies[cookie.key] = cookie
 
     def set(self, key: str, value: str, **kwargs) -> None:
-        self._cookies.append(Cookie(key, value, **kwargs))
+        self._cookies[key] = Cookie(key, value, **kwargs)
 
     def delete(self, key: str, path: str = "/") -> None:
-        self._cookies.append(Cookie(key, "", max_age=0, path=path))
+        self._cookies[key] = Cookie(key, "", max_age=0, path=path)
 
     def apply(self, headers: MutableHeaders) -> None:
         for cookie in self._cookies:
