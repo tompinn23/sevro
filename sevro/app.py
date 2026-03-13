@@ -106,8 +106,8 @@ class Application:
         return self.__get_decorator("GET", pattern)
 
     async def process(self, request, sender):
-        url = request.url
-        if match := self.router.find(url.path(), request.method):
+        url = request.url()
+        if match := self.router.find(url.path(), request.method()):
             handler, params = match
             try:
                 res = await handler(request, params)

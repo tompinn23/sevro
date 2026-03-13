@@ -27,7 +27,7 @@ async def query(req: Request, id: int | None = None):
 
 @app.get("/read")
 async def read(request: Request):
-    return await file("README.md", request_headers=request.headers)
+    return await file("README.md", request_headers=request.headers())
 
 
 if __name__ == "__main__":

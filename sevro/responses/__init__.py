@@ -30,7 +30,7 @@ def redirect(
 ) -> HTTPResponse:
     headers = headers or MutableHeaders()
     headers.setdefault("location", url)
-    return HTTPResponse(b"", status, headers)
+    return HTTPResponse(b"", status, headers, cookies)
 
 
 def text(
@@ -42,7 +42,9 @@ def text(
 ) -> HTTPResponse:
     if not isinstance(body, str):
         raise TypeError(f"Bad body type. Expected str, got {type(body).__name__}")
-    return HTTPResponse(body, status=status, headers=headers, content_type=content_type)
+    return HTTPResponse(
+        body, status=status, headers=headers, cookies=cookies, content_type=content_type
+    )
 
 
 def json(
@@ -56,6 +58,7 @@ def json(
         body=orjson.dumps(body),
         status=status,
         headers=headers,
+        cookies=cookies,
         content_type=content_type,
     )
 
@@ -133,4 +136,6 @@ async def file(
         cache_control = "no-cache"
 
     headers.setdefault("cache-control", cache_control)
-    return FileResponse(path, status=status, headers=headers, content_type=content_type)
+    return FileResponse(
+        path, status=status, headers=headers, cookies=cookies, content_type=content_type
+    )

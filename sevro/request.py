@@ -1,5 +1,7 @@
 from typing import Any, AsyncGenerator
 
+from sevro.cookies import CookieJar
+
 from ._types import RSGIProtocol, Scope, ASGIScope, ASGIReceive
 
 from sevro import url
@@ -15,7 +17,6 @@ class Request:
         self.scope = scope
         self.protocol = protocol
 
-    @property
     def url(self) -> url.URL:
         if not hasattr(self, "_url"):
             if isinstance(self.scope, dict):
@@ -24,11 +25,9 @@ class Request:
                 self._url = url.from_scope(self.scope)
         return self._url
 
-    @property
     def params(self) -> dict[str, str]:
         return self.url.query()
 
-    @property
     def method(self):
         if not hasattr(self, "_method"):
             if isinstance(self.scope, dict):
@@ -37,7 +36,6 @@ class Request:
                 self._method = self.scope.method
         return self._method
 
-    @property
     def headers(self) -> Headers:
         if not hasattr(self, "_headers"):
             if isinstance(self.scope, dict):
@@ -45,6 +43,11 @@ class Request:
             else:
                 self._headers = Headers(headers=self.scope.headers)
         return self._headers
+
+    def cookies(self):
+        if not hasattr(self, "_cookies"):
+            self._cookies = CookieJar(self.headers())
+        return self._cookies
 
     async def stream(self) -> AsyncGenerator[bytes, None]:
         raise NotImplementedError

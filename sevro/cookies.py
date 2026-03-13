@@ -1,3 +1,7 @@
+from dataclasses import dataclass
+from sevro.headers import Headers
+
+
 @dataclass
 class Cookie:
     key: str
@@ -25,10 +29,36 @@ class Cookie:
             cookie += f"; SameSite={self.samesite}"
         return cookie
 
+    @staticmethod
+    def _parse(cookie_str: str) -> Cookie:
+        parts = [p.strip() for p in cookie_str.split(";")]
+        key, _, value = parts[0].partition("=")
+        kwargs = {}
+        for part in parts[1:]:
+            name, _, val = part.partition("=")
+            match name.lower():
+                case "max-age":
+                    kwargs["max_age"] = int(val)
+                case "path":
+                    kwargs["path"] = val
+                case "domain":
+                    kwargs["domain"] = val
+                case "samesite":
+                    kwargs["samesite"] = val
+                case "secure":
+                    kwargs["secure"] = True
+                case "httponly":
+                    kwargs["httponly"] = True
+        return Cookie(key=key, value=value, **kwargs)
+
 
 class CookieJar:
-    def __init__(self):
-        self._cookies: list[Cookie] = []
+    def __init__(self, headers: Headers | None = None):
+        if headers is None:
+            self._cookies: list[Cookie] = []
+        else:
+            for cookie in headers.getall("set-cookie"):
+                self._cookies.append(Cookie._parse(cookie))
 
     def set(self, key: str, value: str, **kwargs) -> None:
         self._cookies.append(Cookie(key, value, **kwargs))
