@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from contextlib import AsyncExitStack
 from functools import wraps
 from typing import Callable, Any
 
@@ -12,7 +11,7 @@ from .request import Request, RSGIRequest, ASGIRequest
 from ._types import Scope, RSGIProtocol, ASGIScope, ASGIReceive, ASGISend
 from .router import Router
 
-from .subrouter import Router as SubRouter
+from .subrouter import Guard, Router as SubRouter
 
 LOG = logging.getLogger(__name__)
 
@@ -46,24 +45,72 @@ class Application:
 
             router = getattr(importlib.import_module(module_path), attr)
         prefix = (path or "") + router.prefix
-        for methods, pattern, fn in router.routes:
+        for methods, pattern, fn, guards in router.routes:
             full_path = prefix + pattern
             dependant = get_dependant(path=full_path, call=fn)
-            self.router.route(methods, full_path, self._wrap(fn, dependant))
+            self.router.route(methods, full_path, self._wrap(fn, dependant, guards))
 
-    def __get_decorator(self, method: str, pattern: str) -> Callable[..., Any]:
-        def decorator(fn):
-            route = pattern
-            dependant = get_dependant(path=route, call=fn)
-            self.router.route([method], route, self._wrap(fn, dependant))
+    def required(self, dependency: Callable) -> Callable:
+        def decorator(fn: Callable) -> Callable:
+            if not hasattr(fn, "_guards"):
+                fn._guards = []
+            fn._guards.append(Guard(dependency=dependency, required=True))
             return fn
 
         return decorator
 
-    def _wrap(self, f: Callable[..., Any], dependant: Dependant) -> Callable[..., Any]:
+    def optional(self, dependency: Callable) -> Callable:
+        def decorator(fn: Callable) -> Callable:
+            if not hasattr(fn, "_guards"):
+                fn._guards = []
+            fn._guards.append(Guard(dependency=dependency, required=False))
+            return fn
+
+        return decorator
+
+    def __get_decorator(self, method: str, pattern: str) -> Callable[..., Any]:
+        def decorator(fn):
+            guards: list[Guard] = getattr(fn, "_guards", [])
+            dependant = get_dependant(path=pattern, call=fn)
+            self.router.route([method], pattern, self._wrap(fn, dependant, guards))
+            return fn
+
+        return decorator
+
+    def _wrap(
+        self,
+        f: Callable[..., Any],
+        dependant: Dependant,
+        guards: list[Guard] | None = None,
+    ) -> Callable[..., Any]:
+        guard_dependants = [
+            (g, get_dependant(path=dependant.path or "", call=g.dependency))
+            for g in (guards or [])
+        ]
+
         @wraps(f)
         async def wrapper(req: Request, path_params: dict[str, str]):
             async with AsyncExitStack() as stack:
+                for guard, guard_dependant in guard_dependants:
+                    guard_solved = await solve_dependencies(
+                        request=req,
+                        dependant=guard_dependant,
+                        path_params=path_params,
+                        async_exit_stack=stack,
+                        registry=self._registry,
+                    )
+                    if guard_solved.errors:
+                        raise ConversionError("; ".join(guard_solved.errors))
+                    assert guard_dependant.call
+                    if guard_dependant.is_coroutine_callable:
+                        result = await guard_dependant.call(**guard_solved.values)
+                    else:
+                        result = await asyncio.to_thread(
+                            guard_dependant.call, **guard_solved.values
+                        )
+                    if guard.required and result is None:
+                        raise HTTPException(401)
+
                 solved = await solve_dependencies(
                     request=req,
                     dependant=dependant,
