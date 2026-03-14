@@ -1,4 +1,5 @@
 import asyncio
+import collections.abc
 import inspect
 from annotationlib import Format, get_annotations  # type: ignore[import-not-found]
 from contextlib import asynccontextmanager, contextmanager, AsyncExitStack
@@ -86,6 +87,8 @@ class Dependant:
     injected_params: list[tuple[str, type]] = field(default_factory=list)
     request_param_name: str | None = None
     http_connection_param_name: str | None = None
+    next_param_name: str | None = None
+    next_param_name: str | None = None
 
     @property
     def cache_key(self) -> tuple:
@@ -292,6 +295,10 @@ def analyze_param(
     )
 
 
+def _is_next_type(annotation: Any) -> bool:
+    return annotation is Callable or get_origin(annotation) is collections.abc.Callable
+
+
 def _is_request_type(annotation: Any) -> bool:
     return annotation is Request or (
         isinstance(annotation, type) and issubclass(annotation, Request)
@@ -334,6 +341,9 @@ def get_dependant(
     endpoint_signature = get_typed_signature(call)
 
     for param_name, param in endpoint_signature.parameters.items():
+        if _is_next_type(param.annotation):
+            dependant.next_param_name = param_name
+            continue
         is_path_param = param_name in path_param_names
         if not is_path_param and _is_injectable_type(param.annotation):
             dependant.injected_params.append((param_name, param.annotation))
@@ -561,7 +571,7 @@ async def solve_dependencies(
 
     # Query params
     if dependant.query_params:
-        query_dict = request.params
+        query_dict = request.params()
         for spec in dependant.query_params:
             raw_list = query_dict.get(spec.alias)
             raw = raw_list[0] if raw_list else None

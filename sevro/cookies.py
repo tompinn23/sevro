@@ -55,6 +55,13 @@ class Cookie:
 
 
 class CookieJar(Mapping[str, Cookie]):
+    def __init__(self, headers: Headers | None = None):
+        self._cookies: dict[str, Cookie] = {}
+        if headers is not None:
+            for cookie in headers.getall("cookie"):
+                cookie = Cookie._parse(cookie)
+                self._cookies[cookie.key] = cookie
+
     def __len__(self):
         self._cookies.__len__()
 
@@ -63,14 +70,6 @@ class CookieJar(Mapping[str, Cookie]):
 
     def __getitem__(self, key, /):
         return self._cookies[key]
-
-    def __init__(self, headers: Headers | None = None):
-        if headers is None:
-            self._cookies: dict[str, Cookie] = {}
-        else:
-            for cookie in headers.getall("set-cookie"):
-                cookie = Cookie._parse(cookie)
-                self._cookies[cookie.key] = cookie
 
     def set(self, key: str, value: str, **kwargs) -> None:
         self._cookies[key] = Cookie(key, value, **kwargs)

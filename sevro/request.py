@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from typing import Any, AsyncGenerator
 
 from sevro.cookies import CookieJar
@@ -16,6 +17,7 @@ class Request:
     def __init__(self, scope: Scope | ASGIScope, protocol: RSGIProtocol | ASGIReceive):
         self.scope = scope
         self.protocol = protocol
+        self.state = SimpleNamespace()
 
     def url(self) -> url.URL:
         if not hasattr(self, "_url"):
@@ -26,7 +28,7 @@ class Request:
         return self._url
 
     def params(self) -> dict[str, str]:
-        return self.url.query()
+        return self.url().query()
 
     def method(self):
         if not hasattr(self, "_method"):

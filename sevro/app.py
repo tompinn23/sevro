@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from contextlib import AsyncExitStack
 from functools import wraps
 from typing import Callable, Any
 
@@ -21,6 +22,7 @@ class Application:
 
     def __init__(self):
         self.router = Router()
+        self._middlewares = []
         self._registry: dict[type, Any] = {}
         self._startup: Callable | None = None
         self._shutdown: Callable | None = None
@@ -34,6 +36,14 @@ class Application:
 
     def on_shutdown(self, fn: Callable) -> Callable:
         self._shutdown = fn
+        return fn
+
+    def middleware(self, fn: Callable) -> Callable:
+        dependant = get_dependant(path="", call=fn)
+        assert dependant.next_param_name is not None, (
+            f"Middleware '{fn.__name__}' must have a 'next: Callable' parameter"
+        )
+        self._middlewares.append((fn, dependant))
         return fn
 
     def mount(self, router: SubRouter | str, path: str | None = None) -> None:
@@ -108,7 +118,7 @@ class Application:
                         result = await asyncio.to_thread(
                             guard_dependant.call, **guard_solved.values
                         )
-                    if guard.required and result is None:
+                    if guard.required and result is None or result is False:
                         raise HTTPException(401)
 
                 solved = await solve_dependencies(
@@ -153,20 +163,41 @@ class Application:
         return self.__get_decorator("GET", pattern)
 
     async def process(self, request, sender):
-        url = request.url()
-        if match := self.router.find(url.path(), request.method()):
-            handler, params = match
-            try:
-                res = await handler(request, params)
-            except HTTPException as e:
-                res = e.response()
-            except Exception as e:
-                LOG.exception(f"Unhandled exception {e}")
-                res = responses.text(e, 500)
+        async def handle(req):
+            url = req.url()
+            if match := self.router.find(url.path(), req.method()):
+                handler, params = match
+                return await handler(req, params)
+            return responses.text("Not Found", 404)
 
-            await res.send(sender)
-        else:
-            await responses.text("Not Found", 404).send(sender)
+        next_fn = handle
+        for mw_fn, mw_dep in reversed(self._middlewares):
+            _fn, _dep, _next = mw_fn, mw_dep, next_fn
+
+            async def call_mw(req, *, fn=_fn, dep=_dep, nxt=_next):
+                async with AsyncExitStack() as stack:
+                    solved = await solve_dependencies(
+                        request=req,
+                        dependant=dep,
+                        path_params={},
+                        async_exit_stack=stack,
+                        registry=self._registry,
+                    )
+                if solved.errors:
+                    raise ConversionError("; ".join(solved.errors))
+                return await fn(**solved.values, **{dep.next_param_name: nxt})
+
+            next_fn = call_mw
+
+        try:
+            res = await next_fn(request)
+        except HTTPException as e:
+            res = e.response()
+        except Exception as e:
+            LOG.exception(f"Unhandled exception {e}")
+            res = responses.text(e, 500)
+
+        await res.send(sender)
 
     async def __call__(self, scope: ASGIScope, receive: ASGIReceive, send: ASGISend):
         if scope["type"] == "lifespan":

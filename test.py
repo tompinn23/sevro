@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Callable
 
 import uvicorn
 
@@ -28,6 +28,11 @@ async def query(req: Request, id: int | None = None):
 @app.get("/read")
 async def read(request: Request):
     return await file("README.md", request_headers=request.headers())
+
+
+@app.middleware
+async def middleware(request: Request, next: Callable):
+    return await next(request)
 
 
 if __name__ == "__main__":
