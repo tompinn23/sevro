@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import sys
 from contextlib import AsyncExitStack
 from functools import wraps
 from typing import Callable, Any
@@ -10,117 +11,127 @@ from .exception import ConversionError, HTTPException
 from sevro.responses.protocol import ASGISender, RSGISender
 from .request import Request, RSGIRequest, ASGIRequest
 from ._types import Scope, RSGIProtocol, ASGIScope, ASGIReceive, ASGISend
-from .router import Router
 
-from .subrouter import Guard, Router as SubRouter
+from .core import Router
 
 LOG = logging.getLogger(__name__)
 
+async def _base_error(request: Request, err: Exception):
+    LOG.error("Unhandled exception whilst processing request", exc_info=True)
+    return responses.text(str(err), 500)
+
 
 class Application:
-    router: Router
+    """
+    Core Sevro application object.
 
-    def __init__(self):
+    An Application manages:
+    - dependency injection
+    - middleware execution
+    - error handlers
+
+    One Application instance should be created per worker/process.
+    """
+
+
+    def __init__(self, routes: Routes):
+        """
+        Initialize the application.
+
+        Parameters
+        ----------
+        routes : Routes
+            A Routes object containing (method, path, handler) triples.
+            These handlers are dependency-wrapped and registered in the router.
+
+        Raises
+        ------
+        ValueError
+            If `routes` is None.
+        """
+
+        if routes is None:
+            raise ValueError("routes must not be none")
         self.router = Router()
+        for method, path, fn in routes.routes():
+            dependant = get_dependant(path, fn)
+            self.router.route(method, path, self._wrap(fn, dependant))
+
         self._middlewares = []
+        self._error_handlers: dict[type[BaseException], Callable[[Request, BaseException], HTTPResponse]] = {Exception: _base_error}
         self._registry: dict[type, Any] = {}
         self._startup: Callable | None = None
         self._shutdown: Callable | None = None
 
     def register(self, t: type, value: Any) -> None:
+        """
+        Register a type for dependency injection.
+        Used for things such as db pools
+
+        Parameters
+        ----------
+        t : type
+            Type key under which the value is stored.
+        value : Any
+            Value instance to inject into handlers/middleware.
+        """
         self._registry[t] = value
 
+    def error_handler(self, exc_class: type[BaseException]):
+        """
+        Decorator that registers an error handler for a given exception,
+        exceptions are propogated upwards until a valid handler is found.
+
+        Parameters
+        ----------
+        exc_class: type[BaseException]
+            The exception type to register a handler for. e.g. HTTPException/ValueError
+        """
+        def decorator(fn):
+            self._error_handlers[exc_class] = fn
+            return fn
+
+        return decorator
+
     def on_startup(self, fn: Callable) -> Callable:
+        """
+        Set a startup hook this is called according to RSGI/ASGI lifespan/lifetime hooks.
+        """
         self._startup = fn
         return fn
 
     def on_shutdown(self, fn: Callable) -> Callable:
+        """
+        Set a shutdown hook this is called according to RSGI/ASGI lifespan/lifetime hooks.
+        """
         self._shutdown = fn
         return fn
 
-    def middleware(self, fn: Callable) -> Callable:
-        dependant = get_dependant(path="", call=fn)
+    def register_middleware(self, mw: Callable[..., Any]):
+        """
+        Register a middleware for use in all routes, (route specific middlewares should use Depends)
+
+        All global middleware must include a next parameter which is the next stage of the route, middleware's may
+        choose to not continue the route by:
+         - returning a response
+         - raising an exception
+
+        Middleware MUST return a value back up the chain or throw an Exception
+        """
+        dependant = get_dependant(path="", call=mw)
         assert dependant.next_param_name is not None, (
             f"Middleware '{fn.__name__}' must have a 'next: Callable' parameter"
         )
-        self._middlewares.append((fn, dependant))
-        return fn
-
-    def mount(self, router: SubRouter | str, path: str | None = None) -> None:
-        if isinstance(router, str):
-            module_path, attr = (
-                router.rsplit(":", 1) if ":" in router else (router, "routes")
-            )
-            import importlib
-
-            router = getattr(importlib.import_module(module_path), attr)
-        prefix = (path or "") + router.prefix
-        for methods, pattern, fn, guards in router.routes:
-            full_path = prefix + pattern
-            dependant = get_dependant(path=full_path, call=fn)
-            self.router.route(methods, full_path, self._wrap(fn, dependant, guards))
-
-    def required(self, dependency: Callable) -> Callable:
-        def decorator(fn: Callable) -> Callable:
-            if not hasattr(fn, "_guards"):
-                fn._guards = []
-            fn._guards.append(Guard(dependency=dependency, required=True))
-            return fn
-
-        return decorator
-
-    def optional(self, dependency: Callable) -> Callable:
-        def decorator(fn: Callable) -> Callable:
-            if not hasattr(fn, "_guards"):
-                fn._guards = []
-            fn._guards.append(Guard(dependency=dependency, required=False))
-            return fn
-
-        return decorator
-
-    def __get_decorator(self, method: str, pattern: str) -> Callable[..., Any]:
-        def decorator(fn):
-            guards: list[Guard] = getattr(fn, "_guards", [])
-            dependant = get_dependant(path=pattern, call=fn)
-            self.router.route([method], pattern, self._wrap(fn, dependant, guards))
-            return fn
-
-        return decorator
+        self._middlewares.append((mw, dependant))
 
     def _wrap(
         self,
-        f: Callable[..., Any],
+        call: Callable[..., Any],
         dependant: Dependant,
-        guards: list[Guard] | None = None,
     ) -> Callable[..., Any]:
-        guard_dependants = [
-            (g, get_dependant(path=dependant.path or "", call=g.dependency))
-            for g in (guards or [])
-        ]
-
-        @wraps(f)
+        @wraps(call)
         async def wrapper(req: Request, path_params: dict[str, str]):
             async with AsyncExitStack() as stack:
-                for guard, guard_dependant in guard_dependants:
-                    guard_solved = await solve_dependencies(
-                        request=req,
-                        dependant=guard_dependant,
-                        path_params=path_params,
-                        async_exit_stack=stack,
-                        registry=self._registry,
-                    )
-                    if guard_solved.errors:
-                        raise ConversionError("; ".join(guard_solved.errors))
-                    assert guard_dependant.call
-                    if guard_dependant.is_coroutine_callable:
-                        result = await guard_dependant.call(**guard_solved.values)
-                    else:
-                        result = await asyncio.to_thread(
-                            guard_dependant.call, **guard_solved.values
-                        )
-                    if guard.required and result is None or result is False:
-                        raise HTTPException(401)
-
                 solved = await solve_dependencies(
                     request=req,
                     dependant=dependant,
@@ -130,7 +141,7 @@ class Application:
                 )
             if solved.errors:
                 raise ConversionError("; ".join(solved.errors))
-            return await f(**solved.values)
+            return await call(**solved.values)
 
         return wrapper
 
@@ -159,13 +170,10 @@ class Application:
             except Exception as e:
                 await send({"type": "lifespan.shutdown.failed", "message": str(e)})
 
-    def get(self, pattern: str | None = None):
-        return self.__get_decorator("GET", pattern)
-
-    async def process(self, request, sender):
+    async def __process(self, request, sender):
         async def handle(req):
             url = req.url()
-            if match := self.router.find(url.path(), req.method()):
+            if match := self.router.find(req.method(), url.path()):
                 handler, params = match
                 return await handler(req, params)
             return responses.text("Not Found", 404)
@@ -191,15 +199,18 @@ class Application:
 
         try:
             res = await next_fn(request)
-        except HTTPException as e:
-            res = e.response()
-        except Exception as e:
-            LOG.exception(f"Unhandled exception {e}")
-            res = responses.text(e, 500)
+        except Exception as err:
+            for cls in type(err).__mro__:
+                if cls in self._error_handlers:
+                    res = await self._error_handlers[cls](request, err)
+                    break
 
         await res.send(sender)
 
     async def __call__(self, scope: ASGIScope, receive: ASGIReceive, send: ASGISend):
+        """
+        ASGI entry point, handles protocol creation and takes the scope of the ASGI event into a request object
+        """
         if scope["type"] == "lifespan":
             await self._handle_lifespan(receive, send)
             return
@@ -207,7 +218,7 @@ class Application:
             return
         request = ASGIRequest(scope, receive)
         sender = ASGISender(scope, send)
-        await self.process(request, sender)
+        await self.__process(request, sender)
 
     def __rsgi_init__(self, loop: asyncio.AbstractEventLoop):
         if self._startup is not None:
@@ -225,6 +236,9 @@ class Application:
                 self._shutdown()
 
     async def __rsgi__(self, scope: Scope, protocol: RSGIProtocol):
+        """
+        RSGI entrypoint.
+        """
         request = RSGIRequest(scope, protocol)
         sender = RSGISender(scope, protocol)
-        await self.process(request, sender)
+        await self.__process(request, sender)

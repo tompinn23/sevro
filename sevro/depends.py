@@ -327,7 +327,6 @@ def _is_injectable_type(annotation: Any) -> bool:
 
 
 def get_dependant(
-    *,
     path: str,
     call: Callable[..., Any],
     name: str | None = None,

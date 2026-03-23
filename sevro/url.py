@@ -2,10 +2,8 @@ from sevro.core import URL
 
 from sevro._types import Scope, ASGIScope
 
-
 def parse(url: str) -> URL:
     return URL(url)
-
 
 def from_asgi_scope(scope: ASGIScope) -> URL:
     scheme = scope.get("scheme", "http")
