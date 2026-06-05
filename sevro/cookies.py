@@ -78,5 +78,5 @@ class CookieJar(Mapping[str, Cookie]):
         self._cookies[key] = Cookie(key, "", max_age=0, path=path)
 
     def apply(self, headers: MutableHeaders) -> None:
-        for cookie in self._cookies:
+        for cookie in self._cookies.values():
             headers.append("set-cookie", cookie.encode())
